@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MBS FM Tool Stock Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Modern, clean font */
+      padding: 20px;
+      background: #f8f9fa; /* Light, modern background */
+      color: #343a40; /* Dark, readable text */
+      line-height: 1.6;
+      position: relative;
+      overflow-x: hidden; /* Prevent horizontal scroll */
+    }
+
+    h1 {
+      color: #007bff; /* Primary brand color */
+      text-align: center;
+      margin-bottom: 30px;
+      font-weight: 500; /* Lighter bold */
+    }
+
+    #staffSection,
+    .tool,
+    #emailSection {
+      background: #fff;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px; /* Soft rounded corners */
+      box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); /* Subtle shadow */
+      border-left: 5px solid #007bff; /* Consistent brand accent */
+    }
+
+    #staffSection label,
+    .tool label,
+    #emailSection label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+      color: #495057; /* Slightly lighter bold */
+    }
+
+    #staffSection input[type="text"],
+    .tool input[type="text"],
+    .tool input[type="number"],
+    .tool select,
+    #emailSection input[type="email"] {
+      width: calc(100% - 16px); /* Full width with padding adjustment */
+      padding: 10px;
+      margin-top: 5px;
+      margin-bottom: 15px;
+      border: 1px solid #ced4da; /* Light grey border */
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-size: 1rem;
+    }
+
+    button {
+      padding: 12px 20px;
+      background: #007bff; /* Primary brand color */
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 6px; /* Slightly more rounded buttons */
+      font-size: 1rem;
+      transition: background-color 0.3s ease; /* Smooth hover transition */
+      margin-right: 10px; /* Space between buttons */
+    }
+
+    button:hover {
+      background: #0056b3; /* Darker shade on hover */
+    }
+
+    .photo-input {
+      margin-top: 15px;
+      padding: 15px;
+      border: 1px solid #dee2e6; /* Light grey border */
+      border-radius: 6px;
+      background-color: #f8f9fa;
+    }
+
+    .photo-preview {
+      margin-top: 10px;
+    }
+
+    .photo-preview img {
+      max-width: 100px;
+      height: auto;
+      margin-right: 10px;
+      border: 1px solid #adb5bd; /* Medium grey border */
+      border-radius: 4px;
+      vertical-align: middle;
+    }
+
+    #emailSection h2 {
+      margin-top: 0;
+      color: #007bff;
+      font-weight: 500;
+      margin-bottom: 15px;
+    }
+
+    #emailSection p {
+      margin-top: 10px;
+      color: #6c757d; /* Muted text color */
+    }
+
+    /* Responsive adjustments for smaller screens */
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+
+      h1 {
+        font-size: 1.75rem;
+        margin-bottom: 20px;
+      }
+
+      #staffSection,
+      .tool,
+      #emailSection {
+        padding: 15px;
+        margin-bottom: 15px;
+      }
+
+      button {
+        padding: 10px 15px;
+        font-size: 0.9rem;
+        margin-right: 5px;
+        margin-top: 10px;
+      }
+
+      .photo-preview img {
+        max-width: 80px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>MBS FM Tool Stock Tracker</h1>
+
+  <div id="staffSection">
+    <label for="staffMember">Staff Member:</label>
+    <input type="text" id="staffMember" placeholder="Enter Staff Member's Name" />
+  </div>
+
+  <div id="toolsContainer"></div>
+
+  <button onclick="addTool()">+ Add Tool</button>
+  <button onclick="exportToExcel()">Download Excel Report</button>
+  <button onclick="emailReportWithoutLink()">Email Report</button>
+
+  <script>
+    let toolIndex = 0;
+    const toolData = []; // Array to store tool data including photos
+
+    function addTool() {
+      const container = document.getElementById("toolsContainer");
+      const currentStaff = document.getElementById("staffMember").value;
+
+      const toolDiv = document.createElement("div");
+      toolDiv.className = "tool";
+      toolDiv.id = `tool-${toolIndex}`;
+
+      toolDiv.innerHTML = `
+        <label for="name-${toolIndex}">Tool Name:</label>
+        <input type="text" placeholder="Tool Name" id="name-${toolIndex}" /><br/>
+
+        <label for="qty-${toolIndex}">Quantity:</label>
+        <input type="number" placeholder="Quantity" id="qty-${toolIndex}" min="0" /><br/>
+
+        <label for="condition-${toolIndex}">Condition:</label>
+        <select id="condition-${toolIndex}">
+          <option value="">Select Condition</option>
+          <option>New</option>
+          <option>Good</option>
+          <option>Fair</option>
+          <option>Needs Repair</option>
+        </select><br/>
+        <button type="button" onclick="searchOnline(${toolIndex})">Search Online</button>
+
+        <div class="photo-input">
+          <p><strong>Tool Photo:</strong></p>
+          <input type="file" accept="image/*" onchange="handlePhoto(event, ${toolIndex})" />
+          <div id="toolPhotoResult-${toolIndex}" class="photo-preview"></div>
+        </div>
+      `;
+
+      container.appendChild(toolDiv);
+      toolData.push({ staff: currentStaff, photoData: null });
+      toolIndex++;
+    }
+
+    function searchOnline(index) {
+      const name = document.getElementById(`name-${index}`).value;
+      if (name.trim()) {
+        const query = encodeURIComponent(name);
+        window.open(`https://www.google.com/search?q=${query}`, "_blank");
+      } else {
+        alert("Please enter a tool name first.");
+      }
+    }
+
+    function handlePhoto(event, index) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function () {
+        const imgDataUrl = reader.result;
+        const previewDiv = document.getElementById(`toolPhotoResult-${index}`);
+        previewDiv.innerHTML = `<img src="${imgDataUrl}" alt="Tool Photo" style="max-width: 100px;">`;
+        toolData[index].photoData = imgDataUrl;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function generateExcelData() {
+      const data = [["Staff Member", "Tool Name", "Quantity", "Condition"]];
+      for (let i = 0; i < toolIndex; i++) {
+        const name = document.getElementById(`name-${i}`);
+        const qty = document.getElementById(`qty-${i}`);
+        const condition = document.getElementById(`condition-${i}`);
+        if (name && qty && condition) {
+          data.push([toolData[i].staff, name.value, parseInt(qty.value), condition.value]);
+        }
+      }
+      return data;
+    }
+
+    function exportToExcel() {
+      const data = generateExcelData();
+      const worksheet = XLSX.utils.aoa_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Tool Stock");
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `MBS_FM_Tool_Stock_${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function emailReportWithoutLink() {
+      let bodyText = "Please find the MBS FM Tool Stock Report data below.\n\n";
+      bodyText += "----------------------------------------\n";
+
+      const excelData = generateExcelData();
+      for (let i = 1; i < excelData.length; i++) {
+        bodyText += `Staff Member: ${excelData[i][0]}\n`;
+        bodyText += `Tool Name: ${excelData[i][1]}\n`;
+        bodyText += `Quantity: ${excelData[i][2]}\n`;
+        bodyText += `Condition: ${excelData[i][3]}\n`;
+        bodyText += "----------------------------------------\n";
+      }
+
+      bodyText += "\nYou can download the full Excel report using the 'Download Excel Report' button on the page.";
+
+      const subject = "MBS FM Tool Stock Report";
+      const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+
+      const tempLink = document.createElement('a');
+      tempLink.href = mailtoLink;
+      tempLink.style.display = 'none'; // Prevent it from being visible
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+    }
+  </script>
+</body>
+</html>
