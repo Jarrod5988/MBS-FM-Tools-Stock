@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MBS FM Tool Stock Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 30px;
+      background: #e9ecef; /* Light gray background */
+      color: #495057; /* Dark gray text */
+      line-height: 1.7;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    h1 {
+      color: #007bff; /* Primary blue */
+      text-align: center;
+      margin-bottom: 40px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+    }
+
+    #monthSection,
+    #staffSection,
+    #toolsContainer > div.tool,
+    #actionsSection {
+      background: #fff;
+      padding: 25px;
+      margin-bottom: 25px;
+      border-radius: 10px;
+      box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.05);
+      border-left: 8px solid #007bff; /* Accent blue border */
+    }
+
+    #monthSection label,
+    #staffSection label,
+    .tool label {
+      display: block;
+      margin-top: 12px;
+      font-weight: 500;
+      color: #343a40;
+    }
+
+    #monthSection input[type="text"],
+    #staffSection input[type="text"],
+    .tool input[type="text"],
+    .tool input[type="number"],
+    .tool select {
+      width: calc(100% - 20px);
+      padding: 12px;
+      margin-top: 8px;
+      margin-bottom: 20px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      box-sizing: border-box;
+      font-size: 1rem;
+    }
+
+    button {
+      padding: 14px 24px;
+      background: #28a745; /* Success green */
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      transition: background-color 0.3s ease;
+      margin-right: 15px;
+      box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    button:hover {
+      background: #1e7e34;
+    }
+
+    #clearButton {
+      background-color: #dc3545; /* Danger red */
+    }
+
+    #clearButton:hover {
+      background-color: #c82333;
+    }
+
+    #actionsSection {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 2rem;
+        margin-bottom: 30px;
+      }
+
+      #monthSection,
+      #staffSection,
+      #toolsContainer > div.tool,
+      #actionsSection {
+        padding: 20px;
+        margin-bottom: 20px;
+        border-left-width: 6px;
+      }
+
+      button {
+        padding: 12px 20px;
+        font-size: 1rem;
+        margin-right: 10px;
+        margin-top: 10px;
+      }
+
+      #actionsSection {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>MBS FM Tool Stock Tracker</h1>
+
+  <div id="monthSection">
+    <label for="reportMonth">Month:</label>
+    <input type="text" id="reportMonth" readonly />
+  </div>
+
+  <div id="staffSection">
+    <label for="staffMember">Staff Member:</label>
+    <input type="text" id="staffMember" placeholder="Enter Staff Member's Name" />
+  </div>
+
+  <div id="toolsContainer"></div>
+
+  <div id="actionsSection">
+    <button onclick="addTool()">+ Add Tool</button>
+    <button onclick="exportToExcel()">Download Excel Report</button>
+    <button id="clearButton" onclick="clearPreviousData()">Clear Previous Results</button>
+  </div>
+
+  <script>
+    let toolIndex = 0;
+    const toolData = [];
+
+    // Function to save data to localStorage
+    function saveData() {
+      localStorage.setItem('staffMember', document.getElementById('staffMember').value);
+      const toolInputs = document.querySelectorAll('#toolsContainer .tool');
+      const savedTools = [];
+      toolInputs.forEach(toolDiv => {
+        const index = toolDiv.id.split('-')[1];
+        savedTools.push({
+          brand: document.getElementById(`brand-${index}`).value,
+          name: document.getElementById(`name-${index}`).value,
+          modelNumber: document.getElementById(`modelNumber-${index}`).value,
+          qty: document.getElementById(`qty-${index}`).value,
+          condition: document.getElementById(`condition-${index}`).value,
+        });
+      });
+      localStorage.setItem('tools', JSON.stringify(savedTools));
+    }
+
+    // Function to load data from localStorage
+    function loadData() {
+      const staffMember = localStorage.getItem('staffMember');
+      if (staffMember) {
+        document.getElementById('staffMember').value = staffMember;
+      }
+      const savedTools = localStorage.getItem('tools');
+      if (savedTools) {
+        const tools = JSON.parse(savedTools);
+        tools.forEach(tool => {
+          addTool(tool.name, tool.brand, tool.modelNumber, tool.qty, tool.condition);
+        });
+      } else {
+        addTool(); // Add at least one tool on initial load
+      }
+    }
+
+    function addTool(name = '', brand = '', modelNumber = '', qty = '', condition = '') {
+      const container = document.getElementById("toolsContainer");
+
+      const toolDiv = document.createElement("div");
+      toolDiv.className = "tool";
+      toolDiv.id = `tool-${toolIndex}`;
+
+      toolDiv.innerHTML = `
+        <label for="brand-${toolIndex}">Brand:</label>
+        <input type="text" placeholder="Brand" id="brand-${toolIndex}" value="${brand}" /><br/>
+
+        <label for="name-${toolIndex}">Tool Name:</label>
+        <input type="text" placeholder="Tool Name" id="name-${toolIndex}" value="${name}" /><br/>
+
+        <label for="modelNumber-${toolIndex}">Model Number:</label>
+        <input type="text" placeholder="Model Number" id="modelNumber-${toolIndex}" value="${modelNumber}" /><br/>
+
+        <label for="qty-${toolIndex}">Quantity:</label>
+        <input type="number" placeholder="Quantity" id="qty-${toolIndex}" min="0" value="${qty}" /><br/>
+
+        <label for="condition-${toolIndex}">Condition:</label>
+        <select id="condition-${toolIndex}">
+          <option value="">Select Condition</option>
+          <option value="New" ${condition === 'New' ? 'selected' : ''}>New</option>
+          <option value="Good" ${condition === 'Good' ? 'selected' : ''}>Good</option>
+          <option value="Fair" ${condition === 'Fair' ? 'selected' : ''}>Fair</option>
+          <option value="Needs Repair" ${condition === 'Needs Repair' ? 'selected' : ''}>Needs Repair</option>
+        </select><br/>
+        <button type="button" onclick="searchOnline(${toolIndex})">Search Online</button>
+      `;
+
+      container.appendChild(toolDiv);
+      toolIndex++;
+      saveData(); // Save immediately after adding a tool
+    }
+
+    function searchOnline(index) {
+      const name = document.getElementById(`name-${index}`).value;
+      const brand = document.getElementById(`brand-${index}`).value;
+      const modelNumber = document.getElementById(`modelNumber-${index}`).value;
+      let query = encodeURIComponent(brand);
+      if (name.trim()) {
+        query += ` ${encodeURIComponent(name)}`;
+      }
+      if (modelNumber.trim()) {
+        query += ` ${encodeURIComponent(modelNumber)}`;
+      }
+      if (name.trim() || brand.trim() || modelNumber.trim()) {
+        window.open(`https://www.google.com/search?q=${query}`, "_blank");
+      } else {
+        alert("Please enter a tool name, brand, or model number first.");
+      }
+    }
+
+    function generateExcelData() {
+      const data = [["Staff Member", "Brand", "Tool Name", "Model Number", "Quantity", "Condition"]];
+      for (let i = 0; i < toolIndex; i++) {
+        const name = document.getElementById(`name-${i}`);
+        const brand = document.getElementById(`brand-${i}`);
+        const modelNumber = document.getElementById(`modelNumber-${i}`);
+        const qty = document.getElementById(`qty-${i}`);
+        const condition = document.getElementById(`condition-${i}`);
+        const staffMember = document.getElementById('staffMember').value;
+        data.push([staffMember, brand.value, name.value, modelNumber.value, parseInt(qty.value), condition.value]);
+      }
+      return data;
+    }
+
+    function exportToExcel() {
+      const data = generateExcelData();
+      const worksheet = XLSX.utils.aoa_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Tool Stock");
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `MBS_FM_Tool_Stock_${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Function to clear previous data from localStorage and reload the page
+    function clearPreviousData() {
+      localStorage.removeItem('staffMember');
+      localStorage.removeItem('tools');
+      const toolsContainer = document.getElementById('toolsContainer');
+      while (toolsContainer.firstChild) {
+        toolsContainer.removeChild(toolsContainer.firstChild);
+      }
+      toolIndex = 0;
+      document.getElementById('staffMember').value = '';
+      addTool(); // Ensure one tool is added after clearing
+      alert('Previous data has been cleared. The form has been reset.');
+    }
+
+    // Automatically populate the month on page load
+    function populateMonth() {
+      const today = new Date();
+      const month = today.toLocaleString('default', { month: 'long' });
+      const year = today.getFullYear();
+      document.getElementById('reportMonth').value = `${month} ${year}`;
+    }
+
+    // Event listeners to save data on input changes
+    document.getElementById('staffMember').addEventListener('input', saveData);
+    document.getElementById('toolsContainer').addEventListener('input', function(event) {
+      if (event.target.tagName === 'INPUT' || event.target.tagName === 'SELECT') {
+        saveData();
+      }
+    });
+
+    // Load data and populate month when the page loads
+    window.onload = function() {
+      populateMonth();
+      loadData();
+    };
+
+    // Save data before the user leaves the page
+    window.addEventListener('beforeunload', saveData);
+  </script>
+</body>
+</html>
